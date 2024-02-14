@@ -57,7 +57,7 @@ pub fn main() !void {
     (switch (mode) {
         .offsets => printResult(
             .{ s_offset, d_offset },
-            runOffsets(iterations, copy_len, s_offset, d_offset, dest, src),
+            runOffsets(iterations, copy_len, dest[d_offset..], src[s_offset..]),
             true,
         ),
         .average => printResult(null, runAverage(iterations, copy_len, dest, src), true),
@@ -67,20 +67,16 @@ pub fn main() !void {
 fn runOffsets(
     iterations: usize,
     copy_len: usize,
-    s_offset: usize,
-    d_offset: usize,
     dest: []u8,
     src: []const u8,
 ) u64 {
-    const time = runOffsetsInner(iterations, copy_len, s_offset, d_offset, dest, src);
+    const time = runOffsetsInner(iterations, copy_len, dest, src);
     return @intCast((@as(u128, copy_len) * iterations * std.time.ns_per_s) / time);
 }
 
 fn runOffsetsInner(
     iterations: usize,
     copy_len: usize,
-    s_offset: usize,
-    d_offset: usize,
     dest: []u8,
     src: []const u8,
 ) u64 {
@@ -88,10 +84,10 @@ fn runOffsetsInner(
 
     var i: usize = 0;
     while (i < iterations) : (i += 1) {
-        _ = @memcpy(dest.ptr[d_offset..][0..copy_len], src.ptr[s_offset..][0..copy_len]);
+        @memcpy(dest[0..copy_len], src[0..copy_len]);
     }
 
-    const time = timer.lap();
+    const time = timer.read();
 
     return time;
 }
@@ -100,7 +96,7 @@ fn runAverage(iterations: usize, copy_len: usize, dest: []u8, src: []const u8) u
     var times: [alignment * alignment]u64 = undefined;
     for (0..alignment) |s_offset| {
         for (0..alignment, times[s_offset * alignment ..][0..alignment]) |d_offset, *time| {
-            time.* = runOffsetsInner(iterations, copy_len, s_offset, d_offset, dest, src);
+            time.* = runOffsetsInner(iterations, copy_len, dest[d_offset..], src[s_offset..]);
         }
     }
 
