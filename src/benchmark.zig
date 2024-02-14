@@ -9,8 +9,9 @@ pub fn main() !void {
         std.process.exit(1);
     }
 
-    const mode = std.meta.stringToEnum(Mode, args[1]) orelse
-        fatal("invalid mode: got \"{s}\", expected \"offsets\" or \"average\"", .{args[1]});
+    const mode = std.meta.stringToEnum(Mode, args[1]) orelse {
+        fatal("invalid mode: got \"{s}\", available options are:{s}\n", .{ args[1], mode_options });
+    };
 
     switch (mode) {
         .offsets => if (args.len != 6) {
@@ -21,28 +22,54 @@ pub fn main() !void {
             usage(.average);
             std.process.exit(1);
         },
+        .lrandom => if (args.len != 8) {
+            usage(.lrandom);
+            std.process.exit(1);
+        },
     }
 
-    const iterations = std.fmt.parseInt(usize, args[2], 10) catch |err| {
+    var index: usize = 2;
+
+    const iterations = std.fmt.parseInt(usize, args[index], 10) catch |err| {
         fatal("invalid iteration count: {s}", .{@errorName(err)});
     };
+    index += 1;
 
-    const copy_len = std.fmt.parseInt(usize, args[3], 10) catch |err|
+    const seed, const min = blk: {
+        if (mode == .lrandom) {
+            const seed = std.fmt.parseInt(u64, args[index], 10) catch |err|
+                fatal("invalid seed; {s}", .{@errorName(err)});
+            index += 1;
+
+            const min = std.fmt.parseInt(u16, args[index], 10) catch |err|
+                fatal("invalid min length: {s}", .{@errorName(err)});
+            index += 1;
+
+            break :blk .{ seed, min };
+        } else break :blk .{ undefined, undefined };
+    };
+
+    const copy_len = std.fmt.parseInt(usize, args[index], 10) catch |err|
         fatal("invalid copy length: {s}", .{@errorName(err)});
+    index += 1;
 
     const s_offset = switch (mode) {
-        .offsets => std.fmt.parseInt(usize, args[4], 10) catch |err|
-            fatal("invalid source offset: {s}", .{@errorName(err)}),
+        .offsets, .lrandom => blk: {
+            index += 1;
+            break :blk std.fmt.parseInt(usize, args[index - 1], 10) catch |err|
+                fatal("invalid source offset: {s}", .{@errorName(err)});
+        },
         .average => alignment,
     };
 
     const d_offset = switch (mode) {
-        .offsets => std.fmt.parseInt(usize, args[5], 10) catch |err|
-            fatal("invalid dest offset: {s}", .{@errorName(err)}),
+        .offsets, .lrandom => blk: {
+            index += 1;
+            break :blk std.fmt.parseInt(usize, args[index - 1], 10) catch |err|
+                fatal("invalid dest offset: {s}", .{@errorName(err)});
+        },
         .average => alignment,
     };
-
-    std.debug.print("copying block of size {d}\n", .{std.fmt.fmtIntSizeBin(copy_len)});
 
     const src = try allocator.alignedAlloc(u8, alignment, copy_len + s_offset);
     defer allocator.free(src);
@@ -61,6 +88,19 @@ pub fn main() !void {
             true,
         ),
         .average => printResult(null, runAverage(iterations, copy_len, dest, src), true),
+        .lrandom => printResult(
+            .{ s_offset, d_offset },
+            runRandom(
+                allocator,
+                seed,
+                iterations,
+                min,
+                std.math.cast(u16, copy_len) orelse @panic("invalid max length: TooLong"),
+                dest[d_offset..],
+                src[s_offset..],
+            ),
+            true,
+        ),
     }) catch |err| std.log.err("could not write results: {s}", .{@errorName(err)});
 }
 
@@ -109,6 +149,38 @@ fn runAverage(iterations: usize, copy_len: usize, dest: []u8, src: []const u8) u
     return @intCast((@as(u128, copy_len) * iterations * std.time.ns_per_s) / avg);
 }
 
+fn runRandom(
+    allocator: Allocator,
+    seed: u64,
+    iterations: usize,
+    min_length: u16,
+    max_length: u16,
+    dest: []u8,
+    src: []const u8,
+) u64 {
+    const lengths = allocator.alloc(u16, iterations) catch @panic("could not allocate lengths buffer");
+    defer allocator.free(lengths);
+
+    var rng = std.rand.DefaultPrng.init(seed);
+    const random = rng.random();
+
+    for (lengths) |*length| {
+        length.* = random.intRangeAtMost(u16, min_length, max_length);
+    }
+
+    var copied_bytes: u64 = 0;
+    var timer = std.time.Timer.start() catch @panic("no supported clock available");
+
+    for (lengths) |copy_len| {
+        @memcpy(dest[0..copy_len], src[0..copy_len]);
+        copied_bytes += copy_len;
+    }
+
+    const time = timer.read();
+
+    return @intCast((@as(u128, copied_bytes) * std.time.ns_per_s) / time);
+}
+
 fn printResult(
     offsets: ?struct { usize, usize },
     throughput: u64,
@@ -142,6 +214,15 @@ fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
 const Mode = enum {
     offsets,
     average,
+    lrandom,
+};
+
+const mode_options = blk: {
+    var buf: []const u8 = "";
+    for (@typeInfo(Mode).Enum.fields) |field| {
+        buf = buf ++ "\n\t" ++ field.name;
+    }
+    break :blk buf;
 };
 
 fn usage(mode: ?Mode) void {
@@ -149,13 +230,17 @@ fn usage(mode: ?Mode) void {
     const message = if (mode) |m| switch (m) {
         .offsets => "usage: memcpy-bench offsets ITERATIONS COPY_LENGTH SOURCE_OFFSET DEST_OFFSET\n",
         .average => "usage: memcpy-bench average ITERATIONS COPY_LENGTH\n",
+        .lrandom => "usage: memcpy-bench lrandom ITERATIONS SEED MIN_LENGTH MAX_LENGTH SOURCE_OFFSET DEST_OFFSET\n",
     } else 
     \\usage:
     \\        memcpy-bench offsets ITERATIONS COPY_LENGTH SOURCE_OFSSET DEST_OFFSET
     \\        memcpy-bench average ITERATIONS COPY_LENGTH
+    \\        memcpy-bench lrandom ITERATIONS SEED MIN_LENGTH MAX_LENGTH SOURCE_OFFSET DEST_OFFSET
+    \\
     ;
 
     stderr.writeAll(message) catch @panic("failed to write usage message");
 }
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
