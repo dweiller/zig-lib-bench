@@ -6,6 +6,9 @@ pub fn build(b: *std.Build) !void {
 
     var lib_dir = try std.fs.cwd().openDir("compiler-rt", .{ .iterate = true });
     defer lib_dir.close();
+
+    var has_compiler_rt = false;
+
     var iter = lib_dir.iterate();
     while (try iter.next()) |entry| {
         if (entry.kind != .file) continue;
@@ -18,15 +21,18 @@ pub fn build(b: *std.Build) !void {
         exe.addObjectFile(.{ .path = b.pathJoin(&.{ "compiler-rt", entry.name }) });
 
         b.installArtifact(exe);
+        has_compiler_rt = true;
     }
 
-    const zig_version = @import("builtin").zig_version_string;
-    const exe = b.addExecutable(.{
-        .name = b.fmt("memcpy-bench-{s}", .{zig_version}),
-        .root_source_file = .{ .path = "src/benchmark.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
+    if (!has_compiler_rt) {
+        const zig_version = @import("builtin").zig_version_string;
+        const exe = b.addExecutable(.{
+            .name = b.fmt("memcpy-bench-{s}", .{zig_version}),
+            .root_source_file = .{ .path = "src/benchmark.zig" },
+            .target = target,
+            .optimize = optimize,
+        });
 
-    b.installArtifact(exe);
+        b.installArtifact(exe);
+    }
 }
