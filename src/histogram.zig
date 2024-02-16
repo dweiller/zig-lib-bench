@@ -1,31 +1,54 @@
 fn destructor() callconv(.C) void {
-    const file = std.fs.cwd().createFile("memcpy-hist.tsv", .{}) catch |err| {
+    var buffer: [32]u8 = undefined;
+
+    const argv: []const []const u8 = blk: {
+        const path = std.fs.selfExePath(&buffer) catch {
+            break :blk &.{"(unknown)"};
+        };
+        break :blk &.{path};
+    };
+
+    const file = std.fs.cwd().createFile("memcpy-hist.tsv", .{
+        .truncate = false,
+        .lock = .exclusive,
+    }) catch |err| {
         std.log.err("could open memcpy-hist.csv: {s}", .{@errorName(err)});
         return;
     };
     defer file.close();
 
+    file.seekFromEnd(0) catch {
+        std.log.err("could not seek to end of memcpy-hist.tsv", .{});
+        return;
+    };
+
     const writer = file.writer();
 
-    writeHistogram(writer) catch |err| {
+    writeHistogram(writer, argv) catch |err| {
         std.log.err("could not write histogram: {s}", .{@errorName(err)});
     };
 }
 
-fn writeHistogram(writer: anytype) !void {
-    try writer.print(
-        \\# memcpy length
-        \\len	count
+fn writeHistogram(writer: anytype, argv: []const []const u8) !void {
+    try writer.writeAll("#");
+    for (argv) |arg| {
+        try writer.print(" {s}", .{std.mem.sliceTo(arg, 0)});
+    }
+    try writer.writeAll(
         \\
-    , .{});
+        \\# memcpy length
+        \\#len	count
+        \\
+    );
     for (memcpy_len[0 .. memcpy_len.len - 1], 0..) |count, length| {
         try writer.print("{d}\t{d}\n", .{ length, count });
     }
     try writer.print(
         \\big	{d}
         \\
+        \\
         \\# memcpy alignments
-        \\dest	src	count
+        \\#dest	src	count
         \\
     , .{memcpy_len[memcpy_len.len - 1]});
     for (memcpy_align, 0..) |src, d_align| {
@@ -33,6 +56,7 @@ fn writeHistogram(writer: anytype) !void {
             try writer.print("{d}\t{d}\t{d}\n", .{ d_align, s_align, count });
         }
     }
+    try writer.writeByteNTimes('\n', 2);
 }
 
 export const fini_array: [1]*const fn () callconv(.C) void linksection(".fini_array") = .{&destructor};
