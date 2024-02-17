@@ -4,31 +4,35 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer allocator.free(args);
 
-    if (args.len < 2) {
+    var index: usize = 1;
+
+    const machine_readable = if (std.mem.eql(u8, "--raw", args[index])) true else false;
+    index += @intFromBool(machine_readable);
+
+    if (args.len < 1 + index) {
         usage(null);
         std.process.exit(1);
     }
 
-    const mode = std.meta.stringToEnum(Mode, args[1]) orelse {
-        fatal("invalid mode: got \"{s}\", available options are:{s}\n", .{ args[1], mode_options });
+    const mode = std.meta.stringToEnum(Mode, args[index]) orelse {
+        fatal("invalid mode: got \"{s}\", available options are:{s}\n", .{ args[index], mode_options });
     };
+    index += 1;
 
     switch (mode) {
-        .offsets => if (args.len != 6) {
+        .offsets => if (args.len != 4 + index) {
             usage(.offsets);
             std.process.exit(1);
         },
-        .average => if (args.len != 4) {
+        .average => if (args.len != 2 + index) {
             usage(.average);
             std.process.exit(1);
         },
-        .lrandom => if (args.len != 8) {
+        .lrandom => if (args.len != 6 + index) {
             usage(.lrandom);
             std.process.exit(1);
         },
     }
-
-    var index: usize = 2;
 
     const iterations = std.fmt.parseInt(usize, args[index], 10) catch |err| {
         fatal("invalid iteration count: {s}", .{@errorName(err)});
@@ -85,9 +89,9 @@ pub fn main() !void {
         .offsets => printResult(
             .{ s_offset, d_offset },
             runOffsets(iterations, copy_len, dest[d_offset..], src[s_offset..]),
-            true,
+            machine_readable,
         ),
-        .average => printResult(null, runAverage(iterations, copy_len, dest, src), true),
+        .average => printResult(null, runAverage(iterations, copy_len, dest, src), machine_readable),
         .lrandom => printResult(
             .{ s_offset, d_offset },
             runRandom(
@@ -99,7 +103,7 @@ pub fn main() !void {
                 dest[d_offset..],
                 src[s_offset..],
             ),
-            true,
+            machine_readable,
         ),
     }) catch |err| std.log.err("could not write results: {s}", .{@errorName(err)});
 }
@@ -184,13 +188,13 @@ fn runRandom(
 fn printResult(
     offsets: ?struct { usize, usize },
     throughput: u64,
-    human_readable: bool,
+    machine_readable: bool,
 ) std.fs.File.WriteError!void {
     const stdout = std.io.getStdOut();
     if (offsets) |o| {
         try stdout.writer().print("{d}\t{d}\t", .{ o[0], o[1] });
     }
-    if (human_readable) {
+    if (!machine_readable) {
         try stdout.writer().print("{:.2}/s\n", .{std.fmt.fmtIntSizeBin(throughput)});
     } else {
         try stdout.writer().print("{d}\n", .{throughput});
