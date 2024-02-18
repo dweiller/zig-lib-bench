@@ -113,9 +113,9 @@ fn runOffsets(
     copy_len: usize,
     dest: []u8,
     src: []const u8,
-) u64 {
+) f64 {
     const time = runOffsetsInner(iterations, copy_len, dest, src);
-    return time / iterations;
+    return @as(f64, @floatFromInt(time)) / @as(f64, @floatFromInt(iterations));
 }
 
 fn runOffsetsInner(
@@ -136,11 +136,11 @@ fn runOffsetsInner(
     return time;
 }
 
-fn runAverage(iterations: usize, copy_len: usize, dest: []u8, src: []const u8) u64 {
+fn runAverage(iterations: usize, copy_len: usize, dest: []u8, src: []const u8) f64 {
     var times: [alignment * alignment]u64 = undefined;
     for (0..alignment) |s_offset| {
         for (0..alignment, times[s_offset * alignment ..][0..alignment]) |d_offset, *time| {
-            time.* = runOffsetsInner(iterations, copy_len, dest[d_offset..], src[s_offset..]) / iterations;
+            time.* = runOffsetsInner(iterations, copy_len, dest[d_offset..], src[s_offset..]);
         }
     }
 
@@ -149,7 +149,7 @@ fn runAverage(iterations: usize, copy_len: usize, dest: []u8, src: []const u8) u
         sum = std.math.add(u128, sum, time) catch @panic("add overflowed");
     }
 
-    return std.math.cast(u64, sum / times.len) orelse @panic("average time overflowed");
+    return @as(f64, @floatFromInt(sum)) / @as(f64, @floatFromInt(iterations));
 }
 
 fn runRandom(
@@ -160,7 +160,7 @@ fn runRandom(
     max_length: u16,
     dest: []u8,
     src: []const u8,
-) u64 {
+) f64 {
     const lengths = allocator.alloc(u16, iterations) catch @panic("could not allocate lengths buffer");
     defer allocator.free(lengths);
 
@@ -181,12 +181,12 @@ fn runRandom(
 
     const time = timer.read();
 
-    return time;
+    return @floatFromInt(time);
 }
 
 fn printResult(
     offsets: ?struct { usize, usize },
-    value: u64,
+    value: f64,
     machine_readable: bool,
 ) std.fs.File.WriteError!void {
     const stdout = std.io.getStdOut();
@@ -194,7 +194,7 @@ fn printResult(
         try stdout.writer().print("{d}\t{d}\t", .{ o[0], o[1] });
     }
     if (!machine_readable) {
-        try stdout.writer().print("{:.2}\n", .{std.fmt.fmtDuration(value)});
+        try stdout.writer().print("{:.2}\n", .{std.fmt.fmtDuration(@intFromFloat(value))});
     } else {
         try stdout.writer().print("{d}\n", .{value});
     }
