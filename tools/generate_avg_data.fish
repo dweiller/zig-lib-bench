@@ -1,20 +1,24 @@
 #!/usr/bin/env fish
 
-if test (count $argv) -lt 3
-    echo "required parameters: OUTFILE MIN_LEN MAX_LEN"
+if test (count $argv) -lt 4
+    echo "required parameters: OUTFILE EXE_FILE LENGTH_FILE ITERATIONS"
     exit 1
 end
 
 set -l results $argv[1]
-set -l min $argv[2]
-set -l max $argv[3]
+set -l exe_file $argv[2]
+set -l len_file $argv[3]
+set -l iterations $argv[4]
 
-for exe in (ls zig-out/bin)
+set -l exe_list (cat $exe_file)
+set -l lengths (cat $len_file)
+
+for exe in $exe_list
     echo -n generating data for $exe:
     echo (string split - -m 1 -f 2 (string split _ -f 2 $exe)) >> $results
-    for len in (seq $min $max) ; echo -n $len\t >> $results
+    for len in $lengths ; echo -n $len\t >> $results
         echo -n " $len"
-        zig-out/bin/$exe --raw average 1_000_000 $len >> $results
+        zig-out/bin/$exe --raw average $iterations $len >> $results
     end
     echo \n >> $results
     echo
