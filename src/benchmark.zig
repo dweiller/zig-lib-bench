@@ -115,7 +115,7 @@ fn runOffsets(
     src: []const u8,
 ) u64 {
     const time = runOffsetsInner(iterations, copy_len, dest, src);
-    return @intCast((@as(u128, copy_len) * iterations * std.time.ns_per_s) / time);
+    return time / iterations;
 }
 
 fn runOffsetsInner(
@@ -140,17 +140,16 @@ fn runAverage(iterations: usize, copy_len: usize, dest: []u8, src: []const u8) u
     var times: [alignment * alignment]u64 = undefined;
     for (0..alignment) |s_offset| {
         for (0..alignment, times[s_offset * alignment ..][0..alignment]) |d_offset, *time| {
-            time.* = runOffsetsInner(iterations, copy_len, dest[d_offset..], src[s_offset..]);
+            time.* = runOffsetsInner(iterations, copy_len, dest[d_offset..], src[s_offset..]) / iterations;
         }
     }
 
-    var avg: u128 = 0;
+    var sum: u128 = 0;
     for (times) |time| {
-        avg = std.math.add(u128, avg, time) catch @panic("add overflowed");
+        sum = std.math.add(u128, sum, time) catch @panic("add overflowed");
     }
-    avg /= times.len;
 
-    return @intCast((@as(u128, copy_len) * iterations * std.time.ns_per_s) / avg);
+    return std.math.cast(u64, sum / times.len) orelse @panic("average time overflowed");
 }
 
 fn runRandom(
@@ -182,12 +181,12 @@ fn runRandom(
 
     const time = timer.read();
 
-    return @intCast((@as(u128, copied_bytes) * std.time.ns_per_s) / time);
+    return time;
 }
 
 fn printResult(
     offsets: ?struct { usize, usize },
-    throughput: u64,
+    value: u64,
     machine_readable: bool,
 ) std.fs.File.WriteError!void {
     const stdout = std.io.getStdOut();
@@ -195,9 +194,9 @@ fn printResult(
         try stdout.writer().print("{d}\t{d}\t", .{ o[0], o[1] });
     }
     if (!machine_readable) {
-        try stdout.writer().print("{:.2}/s\n", .{std.fmt.fmtIntSizeBin(throughput)});
+        try stdout.writer().print("{:.2}\n", .{std.fmt.fmtDuration(value)});
     } else {
-        try stdout.writer().print("{d}\n", .{throughput});
+        try stdout.writer().print("{d}\n", .{value});
     }
 }
 
