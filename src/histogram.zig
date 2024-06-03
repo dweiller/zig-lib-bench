@@ -12,7 +12,7 @@ fn destructor() callconv(.C) void {
         .truncate = false,
         .lock = .exclusive,
     }) catch |err| {
-        std.log.err("could open memcpy-hist.csv: {s}", .{@errorName(err)});
+        std.log.err("could not open memcpy-hist.csv: {s}", .{@errorName(err)});
         return;
     };
     defer file.close();
@@ -30,7 +30,7 @@ fn destructor() callconv(.C) void {
 }
 
 fn writeHistogram(writer: anytype, argv: []const []const u8) !void {
-    try writer.writeAll("#");
+    try writer.writeByte('#');
     for (argv) |arg| {
         try writer.print(" {s}", .{std.mem.sliceTo(arg, 0)});
     }
