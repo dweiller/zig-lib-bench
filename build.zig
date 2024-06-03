@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) !void {
         const zig_version = @import("builtin").zig_version_string;
         const exe = b.addExecutable(.{
             .name = b.fmt("memcpy-bench-{s}", .{zig_version}),
-            .root_source_file = .{ .path = "src/benchmark.zig" },
+            .root_source_file = b.path("src/benchmark.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = link_libc,
@@ -22,7 +22,7 @@ pub fn build(b: *std.Build) !void {
 
     const shared_histogram = b.addSharedLibrary(.{
         .name = "histogram",
-        .root_source_file = .{ .path = "src/histogram.zig" },
+        .root_source_file = b.path("src/histogram.zig"),
         .optimize = .ReleaseFast,
         .target = target,
         .link_libc = true,
@@ -32,7 +32,7 @@ pub fn build(b: *std.Build) !void {
 
     const static_histogram = b.addStaticLibrary(.{
         .name = "histogram",
-        .root_source_file = .{ .path = "src/histogram.zig" },
+        .root_source_file = b.path("src/histogram.zig"),
         .optimize = .ReleaseFast,
         .target = target,
         .link_libc = true,
@@ -61,12 +61,12 @@ fn addFromDir(
         if (entry.kind != .file) continue;
         const exe = b.addExecutable(.{
             .name = b.fmt("memcpy-bench-{s}", .{std.fs.path.stem(entry.name)}),
-            .root_source_file = .{ .path = "src/benchmark.zig" },
+            .root_source_file = b.path("src/benchmark.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = link_libc,
         });
-        exe.addObjectFile(.{ .path = b.pathJoin(&.{ dir, entry.name }) });
+        exe.addObjectFile(b.path(b.pathJoin(&.{ dir, entry.name })));
 
         b.installArtifact(exe);
         has_compiler_rt = true;
