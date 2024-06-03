@@ -3,4 +3,5 @@ set xlabel 'bytes'
 set ylabel 'ns'
 set title 'ns per copy, averaged over ' . ARGV[4] . ' iterations'
 set xrange [-1:ARGV[3]]
+set key outside below
 plot for [i=0:ARGV[2]] ARGV[1] index i using 1:2 with points pt 0 title columnhead
