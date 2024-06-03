@@ -19,6 +19,11 @@ for exe in $exe_list
     for len in $lengths ; echo -n $len\t >> $results
         echo -n " $len"
         zig-out/bin/$exe --raw average $iterations $len >> $results
+        if test $status -ne 0
+            echo
+            echo "zig-out/bin/$exe" failed
+            exit $status
+        end
     end
     echo \n >> $results
     echo
