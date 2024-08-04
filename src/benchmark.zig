@@ -164,7 +164,7 @@ fn runRandom(
     const lengths = allocator.alloc(u16, iterations) catch @panic("could not allocate lengths buffer");
     defer allocator.free(lengths);
 
-    var rng = std.rand.DefaultPrng.init(seed);
+    var rng = std.Random.DefaultPrng.init(seed);
     const random = rng.random();
 
     for (lengths) |*length| {
