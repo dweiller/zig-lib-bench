@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) !void {
         const zig_version = @import("builtin").zig_version_string;
         const exe = b.addExecutable(.{
             .name = b.fmt("memcpy-bench-{s}", .{zig_version}),
-            .root_source_file = b.path("src/benchmark.zig"),
+            .root_source_file = b.path("src/memcpy-bench.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = link_libc,
@@ -61,7 +61,7 @@ fn addFromDir(
         if (entry.kind != .file) continue;
         const exe = b.addExecutable(.{
             .name = b.fmt("memcpy-bench-{s}", .{std.fs.path.stem(entry.name)}),
-            .root_source_file = b.path("src/benchmark.zig"),
+            .root_source_file = b.path("src/memcpy-bench.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = link_libc,
