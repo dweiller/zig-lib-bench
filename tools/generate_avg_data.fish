@@ -15,7 +15,7 @@ set -l lengths (cat $len_file)
 
 for exe in $exe_list
     echo -n generating data for $exe:
-    echo (string split - -m 1 -f 2 (string split _ -f 2 $exe)) >> $results
+    echo (string split - -f 3 $exe) >> $results
     for len in $lengths ; echo -n $len\t >> $results
         echo -n " $len"
         zig-out/bin/$exe --raw average $iterations $len >> $results
