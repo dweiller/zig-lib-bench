@@ -149,7 +149,7 @@ fn runAverage(iterations: usize, copy_len: usize, dest: []u8, src: []const u8) f
         sum = std.math.add(u128, sum, time) catch @panic("add overflowed");
     }
 
-    return @as(f64, @floatFromInt(sum)) / @as(f64, @floatFromInt(iterations));
+    return @as(f64, @floatFromInt(sum)) / @as(f64, @floatFromInt(iterations * alignment * alignment));
 }
 
 fn runRandom(
