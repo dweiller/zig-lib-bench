@@ -34,23 +34,14 @@ fn writeHistogram(writer: anytype, argv: []const []const u8) !void {
     for (argv) |arg| {
         try writer.print(" {s}", .{std.mem.sliceTo(arg, 0)});
     }
-    try writer.writeAll(
-        \\
-        \\# memcpy length
-        \\#len	count
-        \\
-    );
+    try writer.writeAll("\n# memcpy length\n#len\tcount\n");
     for (memcpy_len[0 .. memcpy_len.len - 1], 0..) |count, length| {
         try writer.print("{d}\t{d}\n", .{ length, count });
     }
     try writer.print(
-        \\big	{d}
-        \\
-        \\
-        \\# memcpy alignments
-        \\#dest	src	count
-        \\
-    , .{memcpy_len[memcpy_len.len - 1]});
+        "big\t{d}\n\n\n# memcpy alignments\n#dest\tsrc\tcount\n",
+        .{memcpy_len[memcpy_len.len - 1]},
+    );
     for (memcpy_align, 0..) |src, d_align| {
         for (src, 0..) |count, s_align| {
             try writer.print("{d}\t{d}\t{d}\n", .{ d_align, s_align, count });
