@@ -201,7 +201,7 @@ fn printResult(
 }
 
 const alignment = if (std.simd.suggestVectorLength(u8)) |len|
-    @alignOf(@Type(.{ .Vector = .{
+    @alignOf(@Type(.{ .vector = .{
         .child = u8,
         .len = len,
     } }))
@@ -222,7 +222,7 @@ const Mode = enum {
 
 const mode_options = blk: {
     var buf: []const u8 = "";
-    for (@typeInfo(Mode).Enum.fields) |field| {
+    for (@typeInfo(Mode).@"enum".fields) |field| {
         buf = buf ++ "\n\t" ++ field.name;
     }
     break :blk buf;
