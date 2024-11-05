@@ -2,18 +2,17 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
 
     const link_libc = b.option(bool, "libc", "Link libc (default: false)") orelse false;
 
-    const from_dir = try addFromDir(b, "compiler-rt", optimize, target, link_libc);
+    const from_dir = try addFromDir(b, "compiler-rt", target, link_libc);
     if (!from_dir) {
         const zig_version = @import("builtin").zig_version_string;
         const exe = b.addExecutable(.{
             .name = b.fmt("memcpy-bench-{s}", .{zig_version}),
             .root_source_file = b.path("src/memcpy-bench.zig"),
             .target = target,
-            .optimize = optimize,
+            .optimize = .ReleaseFast,
             .link_libc = link_libc,
         });
 
@@ -44,7 +43,6 @@ pub fn build(b: *std.Build) !void {
 fn addFromDir(
     b: *std.Build,
     dir: []const u8,
-    optimize: std.builtin.OptimizeMode,
     target: std.Build.ResolvedTarget,
     link_libc: bool,
 ) !bool {
@@ -63,7 +61,7 @@ fn addFromDir(
             .name = b.fmt("memcpy-bench-{s}", .{std.fs.path.stem(entry.name)}),
             .root_source_file = b.path("src/memcpy-bench.zig"),
             .target = target,
-            .optimize = optimize,
+            .optimize = .ReleaseFast,
             .link_libc = link_libc,
         });
         exe.addObjectFile(b.path(b.pathJoin(&.{ dir, entry.name })));
