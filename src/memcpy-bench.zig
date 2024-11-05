@@ -179,9 +179,9 @@ fn runRandom(
         copied_bytes += copy_len;
     }
 
-    const time = timer.read();
+    const time: f64 = @floatFromInt(timer.read());
 
-    return @floatFromInt(time);
+    return time / @as(f64, @floatFromInt(iterations));
 }
 
 fn printResult(
