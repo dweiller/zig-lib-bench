@@ -217,7 +217,7 @@ fn runRandom(
     return time / @as(f64, @floatFromInt(iterations));
 }
 
-const Distribution = std.meta.DeclEnum(@import("distributions.zig"));
+const Distribution = std.meta.DeclEnum(@import("distribution"));
 
 fn runDist(
     allocator: Allocator,
@@ -278,9 +278,9 @@ const ParamGenerator = struct {
         const src_buffer = try self.allocator.alloc([]const u8, iterations);
         std.log.debug("generating batch for {d} iterations", .{iterations});
 
-        const distributions = @import("distributions.zig");
+        const distribution = @import("distribution");
         const weights = switch (self.dist) {
-            inline else => |t| @field(distributions, @tagName(t)),
+            inline else => |t| @field(distribution, @tagName(t)),
         };
 
         for (dest_buffer, src_buffer) |*d, *s| {
