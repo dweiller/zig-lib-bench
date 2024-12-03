@@ -159,7 +159,7 @@ pub fn formatRow(
                         width[i].split[1] - (index_writer.bytes_written - index),
                     };
                 } else {
-                    const total = width[i].split[0] + width[i].split[1];
+                    const total = width[i].split[0] + width[i].split[1] + 1;
                     const pad = total - index_writer.bytes_written;
                     break :blk .{ (pad + 1) / 2, pad / 2 };
                 }
