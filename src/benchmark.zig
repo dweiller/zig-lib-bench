@@ -14,6 +14,16 @@ pub const TerminationCondition = enum {
     samples,
     precision,
     iterations,
+
+    pub fn format(
+        value: TerminationCondition,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) @TypeOf(writer).Error!void {
+        _ = fmt;
+        try std.fmt.formatBuf(@tagName(value), options, writer);
+    }
 };
 
 pub const Result = struct {
