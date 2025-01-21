@@ -337,12 +337,19 @@ fn printResult2(
                 .{ .fmt = "{d}", .header = "dest offset", .alignment = .right },
             },
             .{},
-            [1]struct { []const u8, @TypeOf(duration), u32, []const u8, usize, usize }{
+            [1]struct {
+                []const u8,
+                @TypeOf(duration),
+                u32,
+                benchmark.TerminationCondition,
+                usize,
+                usize,
+            }{
                 .{
                     @tagName(distribution),
                     duration,
                     result.iterations,
-                    @tagName(result.termination),
+                    result.termination,
                     offsets[0],
                     offsets[1],
                 },
