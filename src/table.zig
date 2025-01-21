@@ -129,7 +129,7 @@ pub fn formatRow(
     comptime var arg_index = 0;
 
     inline for (spec, 0..) |column, i| {
-        const placeholder = comptime std.fmt.Placeholder.parse(column.fmt[0..column.fmt.len].*);
+        const placeholder = comptime std.fmt.Placeholder.parse(extractPlaceholder(column.fmt)[0..].*);
         const arg_pos = switch (placeholder.arg) {
             .none => blk: {
                 defer arg_index += 1;
@@ -190,7 +190,7 @@ pub fn measureColumns(comptime spec: []const Column, data: anytype) [spec.len]Co
     var sizes: [spec.len]ColumnSize = undefined;
     comptime var arg_index = 0;
     inline for (&sizes, spec) |*size, column| {
-        const placeholder = comptime std.fmt.Placeholder.parse(column.fmt[0..column.fmt.len].*);
+        const placeholder = comptime std.fmt.Placeholder.parse(extractPlaceholder(column.fmt)[0..].*);
         const arg_pos = switch (placeholder.arg) {
             .none => blk: {
                 defer arg_index += 1;
@@ -235,6 +235,33 @@ pub fn measureColumns(comptime spec: []const Column, data: anytype) [spec.len]Co
     }
 
     return sizes;
+}
+
+fn extractPlaceholder(comptime fmt: []const u8) []const u8 {
+    const errors = struct {
+        const missing = "column format string '" ++ fmt ++ "' does not contain a placeholder";
+        const unclosed = "placeholder in column format string '" ++ fmt ++ "'" ++ "is missing closing '}'";
+    };
+
+    var start = std.mem.indexOfScalar(u8, fmt, '{') orelse
+        @compileError(errors.missing);
+
+    while (fmt.len > start + 1 and fmt[start + 1] == '{') {
+        start = std.mem.indexOfScalarPos(u8, fmt, start + 2, '{') orelse
+            @compileError(errors.missing);
+    }
+
+    var end = std.mem.indexOfScalarPos(u8, fmt, start + 1, '}') orelse {
+        @compileError(errors.unclosed);
+    };
+
+    while (fmt.len > end + 1 and fmt[end + 1] == '}') {
+        end = std.mem.indexOfScalarPos(u8, fmt, end + 2, '}') orelse {
+            @compileError(errors.unclosed);
+        };
+    }
+
+    return fmt[start + 1 .. end];
 }
 
 fn IndexOfWriter(comptime WriterType: type) type {
