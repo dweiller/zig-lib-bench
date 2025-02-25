@@ -8,4 +8,10 @@
         "README.md",
         "LICENSE",
     },
+    .dependencies = .{
+        .zli = .{
+            .url = "https://github.com/dweiller/zli/archive/16965e3c9937a846bb3d93561f6735806e8371eb.tar.gz",
+            .hash = "1220503a00bbd0cf2dc0a1856816cf4f5b004c463103edc8605bb7dddfb1bee1840c",
+        },
+    },
 }

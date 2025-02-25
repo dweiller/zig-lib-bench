@@ -12,16 +12,40 @@ pub fn build(b: *std.Build) !void {
     const from_dir = try addFromDir(b, "compiler-rt", dist_mod, target, link_libc);
     if (!from_dir) {
         const zig_version = @import("builtin").zig_version_string;
-        const exe = b.addExecutable(.{
-            .name = b.fmt("memcpy-bench-{s}", .{zig_version}),
+        const zli_mod = b.dependency("zli", .{}).module("zli");
+
+        const memcpy_root = b.createModule(.{
             .root_source_file = b.path("src/memcpy-bench.zig"),
             .target = target,
             .optimize = .ReleaseFast,
             .link_libc = link_libc,
+            .imports = &.{
+                .{ .name = "distribution", .module = dist_mod },
+            },
         });
-        exe.root_module.addImport("distribution", dist_mod);
+        const memcpy_exe = b.addExecutable(.{
+            .name = b.fmt("memcpy-bench-{s}", .{zig_version}),
+            .root_module = memcpy_root,
+        });
 
-        b.installArtifact(exe);
+        const memmove_root = b.createModule(.{
+            .root_source_file = b.path("src/memmove-bench.zig"),
+            .target = target,
+            .optimize = .ReleaseFast,
+            .link_libc = link_libc,
+            .imports = &.{
+                .{ .name = "distribution", .module = dist_mod },
+                .{ .name = "zli", .module = zli_mod },
+            },
+        });
+
+        const memmove_exe = b.addExecutable(.{
+            .name = b.fmt("memmove-bench-{s}", .{zig_version}),
+            .root_module = memmove_root,
+        });
+
+        b.installArtifact(memcpy_exe);
+        b.installArtifact(memmove_exe);
     }
 
     const shared_histogram = b.addSharedLibrary(.{
@@ -58,22 +82,51 @@ fn addFromDir(
     };
     defer lib_dir.close();
 
+    const zli_mod = b.dependency("zli", .{}).module("zli");
+
     var has_compiler_rt = false;
 
     var iter = lib_dir.iterate();
     while (try iter.next()) |entry| {
         if (entry.kind != .file) continue;
-        const exe = b.addExecutable(.{
-            .name = b.fmt("memcpy-bench-{s}", .{std.fs.path.stem(entry.name)}),
+        const memcpy_root = b.createModule(.{
             .root_source_file = b.path("src/memcpy-bench.zig"),
             .target = target,
             .optimize = .ReleaseFast,
             .link_libc = link_libc,
+            .imports = &.{
+                .{ .name = "distribution", .module = dist_mod },
+            },
         });
-        exe.addObjectFile(b.path(b.pathJoin(&.{ dir, entry.name })));
-        exe.root_module.addImport("distribution", dist_mod);
+        memcpy_root.addObjectFile(b.path(b.pathJoin(&.{ dir, entry.name })));
 
-        b.installArtifact(exe);
+        const memmove_root = b.createModule(.{
+            .root_source_file = b.path("src/memmove-bench.zig"),
+            .target = target,
+            .optimize = .ReleaseFast,
+            .link_libc = link_libc,
+            .imports = &.{
+                .{ .name = "distribution", .module = dist_mod },
+                .{ .name = "zli", .module = zli_mod },
+            },
+        });
+        memcpy_root.addObjectFile(b.path(b.pathJoin(&.{ dir, entry.name })));
+
+        const name_stem = std.fs.path.stem(entry.name);
+
+        const memcpy_exe = b.addExecutable(.{
+            .name = b.fmt("memcpy-bench-{s}", .{name_stem}),
+            .root_module = memcpy_root,
+        });
+
+        const memmove_exe = b.addExecutable(.{
+            .name = b.fmt("memmove-bench-{s}", .{name_stem}),
+            .root_module = memmove_root,
+        });
+
+        b.installArtifact(memcpy_exe);
+        b.installArtifact(memmove_exe);
+
         has_compiler_rt = true;
     }
 
