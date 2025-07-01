@@ -23,7 +23,7 @@ pub fn format(
     data: anytype,
 ) @TypeOf(writer).Error!void {
     const type_info = @typeInfo(@TypeOf(data));
-    if (type_info != .array and (type_info != .pointer or type_info.pointer.size != .Slice)) {
+    if (type_info != .array and (type_info != .pointer or type_info.pointer.size != .slice)) {
         @compileError("expected slice or array of data rows, got " ++ @typeName(@TypeOf(data)));
     }
 

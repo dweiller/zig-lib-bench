@@ -1,5 +1,6 @@
 .{
-    .name = "memcpy-bench",
+    .name = .compiler_rt_bench,
+    .fingerprint = 0x7bfe4fa8dadab772,
     .version = "0.0.0",
     .paths = .{
         "build.zig",
