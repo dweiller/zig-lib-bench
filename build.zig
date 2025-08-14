@@ -1,4 +1,5 @@
 const std = @import("std");
+const assert = std.debug.assert;
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -13,6 +14,7 @@ pub fn build(b: *std.Build) !void {
     if (!from_dir) {
         const zig_version = @import("builtin").zig_version_string;
         const zli_mod = b.dependency("zli", .{}).module("zli");
+        const table_mod = b.dependency("simple_tables", .{}).module("table");
 
         const memcpy_root = b.createModule(.{
             .root_source_file = b.path("src/memcpy-bench.zig"),
@@ -21,6 +23,7 @@ pub fn build(b: *std.Build) !void {
             .link_libc = link_libc,
             .imports = &.{
                 .{ .name = "distribution", .module = dist_mod },
+                .{ .name = "table", .module = table_mod },
             },
         });
         const memcpy_exe = b.addExecutable(.{
@@ -36,6 +39,7 @@ pub fn build(b: *std.Build) !void {
             .imports = &.{
                 .{ .name = "distribution", .module = dist_mod },
                 .{ .name = "zli", .module = zli_mod },
+                .{ .name = "table", .module = table_mod },
             },
         });
 
@@ -48,22 +52,24 @@ pub fn build(b: *std.Build) !void {
         b.installArtifact(memmove_exe);
     }
 
-    const shared_histogram = b.addSharedLibrary(.{
-        .name = "histogram",
+    const histogram_mod = b.createModule(.{
         .root_source_file = b.path("src/histogram.zig"),
         .optimize = .ReleaseFast,
         .target = target,
         .link_libc = true,
     });
+    const shared_histogram = b.addLibrary(.{
+        .name = "histogram",
+        .root_module = histogram_mod,
+        .linkage = .dynamic,
+    });
 
     b.installArtifact(shared_histogram);
 
-    const static_histogram = b.addStaticLibrary(.{
+    const static_histogram = b.addLibrary(.{
         .name = "histogram",
-        .root_source_file = b.path("src/histogram.zig"),
-        .optimize = .ReleaseFast,
-        .target = target,
-        .link_libc = true,
+        .root_module = histogram_mod,
+        .linkage = .static,
     });
 
     b.installArtifact(static_histogram);
@@ -83,6 +89,7 @@ fn addFromDir(
     defer lib_dir.close();
 
     const zli_mod = b.dependency("zli", .{}).module("zli");
+    const table_mod = b.dependency("simple_tables", .{}).module("table");
 
     var has_compiler_rt = false;
 
@@ -96,6 +103,7 @@ fn addFromDir(
             .link_libc = link_libc,
             .imports = &.{
                 .{ .name = "distribution", .module = dist_mod },
+                .{ .name = "table", .module = table_mod },
             },
         });
         memcpy_root.addObjectFile(b.path(b.pathJoin(&.{ dir, entry.name })));
@@ -108,6 +116,7 @@ fn addFromDir(
             .imports = &.{
                 .{ .name = "distribution", .module = dist_mod },
                 .{ .name = "zli", .module = zli_mod },
+                .{ .name = "table", .module = table_mod },
             },
         });
         memcpy_root.addObjectFile(b.path(b.pathJoin(&.{ dir, entry.name })));
@@ -149,18 +158,26 @@ fn addDistributions(
     };
 
     const wf_step = b.addWriteFiles();
+    var file_buffer: []u8 = &.{};
     var bytes = try std.ArrayList(u8).initCapacity(b.allocator, 1024);
     for (distributions) |dist| {
         const path = b.pathJoin(&.{ "distributions", dist[1] });
         const csv_file = try b.build_root.handle.openFile(path, .{});
-        const csv_data = try csv_file.readToEndAlloc(b.allocator, 1 << 20);
-        try bytes.writer().print(
+
+        const size = (try csv_file.stat()).size;
+        if (file_buffer.len < size) {
+            file_buffer = try b.allocator.realloc(file_buffer, size);
+        }
+
+        assert(size == try csv_file.readAll(file_buffer));
+
+        try bytes.print(b.allocator,
             \\pub const {c}: [4097]f64 = d: {{
             \\    const d = [_]f64{{ {s} }};
             \\    break :d d ++ (.{{0}} ** (4097 - d.len));
             \\}};
             \\
-        , .{ dist[0], csv_data });
+        , .{ dist[0], file_buffer[0..size] });
     }
     return wf_step.add("distribution.zig", bytes.items);
 }

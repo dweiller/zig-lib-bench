@@ -94,10 +94,10 @@ pub fn main() !void {
         .average => alignment,
     };
 
-    const src = try allocator.alignedAlloc(u8, alignment, copy_len + s_offset);
+    const src = try allocator.alignedAlloc(u8, .fromByteUnits(alignment), copy_len + s_offset);
     defer allocator.free(src);
 
-    const dest = try allocator.alignedAlloc(u8, alignment, copy_len + d_offset);
+    const dest = try allocator.alignedAlloc(u8, .fromByteUnits(alignment), copy_len + d_offset);
     defer allocator.free(dest);
 
     // make sure all pages are faulted
@@ -305,15 +305,16 @@ fn printResult(
     offsets: ?struct { usize, usize },
     value: f64,
     machine_readable: bool,
-) std.fs.File.WriteError!void {
-    const stdout = std.io.getStdOut();
+) !void {
+    var stdout = std.fs.File.stdout().writer(&.{});
+    const writer = &stdout.interface;
     if (offsets) |o| {
-        try stdout.writer().print("{d}\t{d}\t", .{ o[0], o[1] });
+        try writer.print("{d}\t{d}\t", .{ o[0], o[1] });
     }
     if (!machine_readable) {
-        try stdout.writer().print("{:.2}\n", .{std.fmt.fmtDuration(@intFromFloat(value))});
+        try writer.print("{D:.2}\n", .{@as(u64, @intFromFloat(value))});
     } else {
-        try stdout.writer().print("{d}\n", .{value});
+        try writer.print("{d}\n", .{value});
     }
 }
 
@@ -322,24 +323,24 @@ fn printResult2(
     offsets: struct { usize, usize },
     result: benchmark.Result,
     machine_readable: bool,
-) std.fs.File.WriteError!void {
-    const stdout = std.io.getStdOut();
+) !void {
+    var stdout = std.fs.File.stdout().writer(&.{});
+    const writer = &stdout.interface;
     if (!machine_readable) {
-        const duration = std.fmt.fmtDuration(@intFromFloat(@round(result.duration)));
         try table.format(
-            stdout.writer(),
+            writer,
             &.{
                 .{ .fmt = "{s}", .header = "dist", .alignment = .middle },
-                .{ .fmt = "{}", .header = "time", .alignment = .{ .separator = '.' } },
+                .{ .fmt = "{D}", .header = "time", .alignment = .{ .separator = '.' } },
                 .{ .fmt = "{d}", .header = "iterations", .alignment = .right },
-                .{ .fmt = "{s}", .header = "termination", .alignment = .middle },
+                .{ .fmt = "{t}", .header = "termination", .alignment = .middle },
                 .{ .fmt = "{d}", .header = "src offset", .alignment = .right },
                 .{ .fmt = "{d}", .header = "dest offset", .alignment = .right },
             },
             .{},
             [1]struct {
                 []const u8,
-                @TypeOf(duration),
+                u64,
                 u32,
                 benchmark.TerminationCondition,
                 usize,
@@ -347,7 +348,7 @@ fn printResult2(
             }{
                 .{
                     @tagName(distribution),
-                    duration,
+                    @intFromFloat(result.duration),
                     result.iterations,
                     result.termination,
                     offsets[0],
@@ -356,7 +357,7 @@ fn printResult2(
             },
         );
     } else {
-        try stdout.writer().print("{s}\t{d}\t{d}\t{d}\t{d}\n", .{
+        try writer.print("{s}\t{d}\t{d}\t{d}\t{d}\n", .{
             @tagName(distribution),
             offsets[0],
             offsets[1],
@@ -375,8 +376,8 @@ else
     @alignOf(usize);
 
 fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
-    const stderr = std.io.getStdErr();
-    stderr.writer().print(fmt ++ "\n", args) catch @panic("failed writing error message");
+    var stderr = std.fs.File.stderr().writer(&.{});
+    stderr.interface.print(fmt ++ "\n", args) catch @panic("failed writing error message");
     std.process.exit(1);
 }
 
@@ -396,7 +397,7 @@ const mode_options = blk: {
 };
 
 fn usage(mode: ?Mode) void {
-    const stderr = std.io.getStdErr();
+    const stderr = std.fs.File.stderr();
     const message = if (mode) |m| switch (m) {
         .offsets => "usage: memcpy-bench offsets ITERATIONS COPY_LENGTH SOURCE_OFFSET DEST_OFFSET\n",
         .average => "usage: memcpy-bench average ITERATIONS COPY_LENGTH\n",
@@ -414,11 +415,11 @@ fn usage(mode: ?Mode) void {
             break :msg msg;
         },
     } else 
-    \\usage:
-    \\        memcpy-bench offsets ITERATIONS COPY_LENGTH SOURCE_OFSSET DEST_OFFSET
-    \\        memcpy-bench average ITERATIONS COPY_LENGTH
-    \\        memcpy-bench lrandom ITERATIONS SEED MIN_LENGTH MAX_LENGTH SOURCE_OFFSET DEST_OFFSET
-    \\
+        \\usage:
+        \\        memcpy-bench offsets ITERATIONS COPY_LENGTH SOURCE_OFSSET DEST_OFFSET
+        \\        memcpy-bench average ITERATIONS COPY_LENGTH
+        \\        memcpy-bench lrandom ITERATIONS SEED MIN_LENGTH MAX_LENGTH SOURCE_OFFSET DEST_OFFSET
+        \\
     ;
 
     stderr.writeAll(message) catch @panic("failed to write usage message");
@@ -428,4 +429,4 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const benchmark = @import("benchmark.zig");
-const table = @import("table.zig");
+const table = @import("table");

@@ -1,4 +1,4 @@
-fn destructor() callconv(.C) void {
+fn destructor() callconv(.c) void {
     var buffer: [32]u8 = undefined;
 
     const argv: []const []const u8 = blk: {
@@ -22,7 +22,8 @@ fn destructor() callconv(.C) void {
         return;
     };
 
-    const writer = file.writer();
+    var file_writer = file.writer(&.{});
+    const writer = &file_writer.interface;
 
     writeHistogram(writer, argv) catch |err| {
         std.log.err("could not write histogram: {s}", .{@errorName(err)});
@@ -47,10 +48,10 @@ fn writeHistogram(writer: anytype, argv: []const []const u8) !void {
             try writer.print("{d}\t{d}\t{d}\n", .{ d_align, s_align, count });
         }
     }
-    try writer.writeByteNTimes('\n', 2);
+    try writer.splatByteAll('\n', 2);
 }
 
-export const fini_array: [1]*const fn () callconv(.C) void linksection(".fini_array") = .{&destructor};
+export const fini_array: [1]*const fn () callconv(.c) void linksection(".fini_array") = .{&destructor};
 
 const CopyType = if (std.simd.suggestVectorLength(u8)) |len|
     @Vector(len, u8)

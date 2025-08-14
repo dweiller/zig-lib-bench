@@ -101,7 +101,7 @@ fn run(allocator: std.mem.Allocator, params: Cli.Params) !void {
     const machine_readable = if (params.options.@"machine-readable")
         true
     else
-        !std.io.getStdOut().isTty();
+        !std.fs.File.stdout().isTty();
 
     switch (subcommand) {
         .distrib => |sc| try runDistrib(allocator, seed, machine_readable, sc),
@@ -127,7 +127,7 @@ fn runDistrib(
     const max_copy_len = 4096;
     const buffer = try allocator.alignedAlloc(
         u8,
-        std.heap.pageSize(),
+        .fromByteUnits(std.heap.pageSize()),
         src_offset + max_copy_len + @abs(move_offset),
     );
     defer allocator.free(buffer);
@@ -236,24 +236,25 @@ fn printResult(
     offsets: struct { usize, isize },
     result: benchmark.Result,
     machine_readable: bool,
-) std.fs.File.WriteError!void {
-    const stdout = std.io.getStdOut();
+) !void {
+    var stdout = std.fs.File.stdout().writer(&.{});
+    const writer = &stdout.interface;
+    defer writer.flush() catch {};
     if (!machine_readable) {
-        const duration = std.fmt.fmtDuration(@intFromFloat(@round(result.duration)));
         try table.format(
-            stdout.writer(),
+            writer,
             &.{
                 .{ .fmt = "{s}", .header = "dist", .alignment = .middle },
-                .{ .fmt = "{}", .header = "time", .alignment = .{ .separator = '.' } },
+                .{ .fmt = "{D}", .header = "time", .alignment = .{ .separator = '.' } },
                 .{ .fmt = "{d}", .header = "iterations", .alignment = .right },
-                .{ .fmt = "{s}", .header = "termination", .alignment = .middle },
+                .{ .fmt = "{t}", .header = "termination", .alignment = .middle },
                 .{ .fmt = "{d}", .header = "src offset", .alignment = .right },
                 .{ .fmt = "{d}", .header = "move offset", .alignment = .right },
             },
             .{},
             [1]struct {
                 []const u8,
-                @TypeOf(duration),
+                u64,
                 u32,
                 benchmark.TerminationCondition,
                 usize,
@@ -261,7 +262,7 @@ fn printResult(
             }{
                 .{
                     @tagName(distribution),
-                    duration,
+                    @intFromFloat(result.duration),
                     result.iterations,
                     result.termination,
                     offsets[0],
@@ -270,7 +271,7 @@ fn printResult(
             },
         );
     } else {
-        try stdout.writer().print("{s}\t{d}\t{d}\t{d}\t{d}\n", .{
+        try writer.print("{s}\t{d}\t{d}\t{d}\t{d}\n", .{
             @tagName(distribution),
             offsets[0],
             offsets[1],
@@ -304,6 +305,6 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const benchmark = @import("benchmark.zig");
-const table = @import("table.zig");
+const table = @import("table");
 
 const zli = @import("zli");
