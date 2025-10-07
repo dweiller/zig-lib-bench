@@ -10,6 +10,12 @@ const BenchDeps = struct {
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
 
+    const object_dir = b.option(
+        []const u8,
+        "object-dir",
+        "directory of objects overriding compiler-rt functions",
+    );
+
     const link_libc = b.option(bool, "libc", "Link libc (default: false)") orelse false;
 
     const deps: BenchDeps = .{
@@ -20,7 +26,7 @@ pub fn build(b: *std.Build) !void {
         .table_mod = b.dependency("simple_tables", .{}).module("table"),
     };
 
-    const from_dir = try addFromDir(b, "compiler-rt", deps, target, link_libc);
+    const from_dir = try addFromDir(b, object_dir, deps, target, link_libc);
     if (!from_dir) {
         const memcpy_exe, const memmove_exe, const memset_exe = addBenchExes(
             b,
