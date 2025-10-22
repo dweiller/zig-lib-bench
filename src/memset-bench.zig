@@ -39,7 +39,7 @@ const distrib_args = [_]zli.Arg{
 };
 
 pub fn main() u8 {
-    return parseAndRun() catch |err| {
+    parseAndRun() catch |err| {
         switch (err) {
             error.AlreadyHandled => return 1,
             else => {
@@ -51,9 +51,10 @@ pub fn main() u8 {
             },
         }
     };
+    return 0;
 }
 
-fn parseAndRun() !u8 {
+fn parseAndRun() !void {
     var arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
     defer arena.deinit();
 
@@ -66,14 +67,13 @@ fn parseAndRun() !u8 {
         .ok => |params| params,
         .err => |err| {
             err.renderToStdErr();
-            return 1;
+            return error.AlreadyHandled;
         },
     };
 
     var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
     defer std.debug.assert(gpa.deinit() == .ok);
     try run(gpa.allocator(), params);
-    return 0;
 }
 
 fn run(allocator: std.mem.Allocator, params: Cli.Params) !void {
