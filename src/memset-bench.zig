@@ -99,10 +99,10 @@ fn runDistrib(
     machine_readable: bool,
     params: zli.Options(&distrib_args),
 ) !void {
-    const distribution = params.distribution orelse {
-        std.log.err("must provide '--distribution", .{});
-        return error.AlreadyHandled;
-    };
+    const distributions = if (params.distribution) |dist|
+        &.{dist}
+    else
+        std.enums.values(Distribution);
     const offset = params.offset orelse 0;
 
     const max_len = 4096;
@@ -116,35 +116,50 @@ fn runDistrib(
     // make sure all pages are faulted
     @memset(buffer, 0);
 
-    var rng = std.Random.DefaultPrng.init(seed);
-    var param_generator: ParamGenerator = .{
-        .allocator = allocator,
-        .dist = distribution,
-        .dest = buffer[offset..][0..max_len],
-        .random = rng.random(),
-    };
+    var results: [@typeInfo(Distribution).@"enum".fields.len]Result = undefined;
 
-    const f = struct {
-        fn f(d: []u8, v: u8) void {
-            @memset(d, v);
-        }
-    }.f;
+    for (distributions, results[0..distributions.len]) |dist, *res| {
+        var rng = std.Random.DefaultPrng.init(seed);
+        var param_generator: ParamGenerator = .{
+            .allocator = allocator,
+            .dist = dist,
+            .dest = buffer[offset..][0..max_len],
+            .random = rng.random(),
+        };
 
-    const results = try benchmark.benchmark(
-        .{
-            .initial_iterations = 2000,
-        },
-        f,
-        &param_generator,
-    );
+        const result = try benchmark.benchmark(
+            .{
+                .initial_iterations = 2000,
+            },
+            memset,
+            &param_generator,
+        );
+        res.* = .{
+            .distribution = @tagName(dist),
+            .duration = @intFromFloat(result.duration),
+            .iterations = result.iterations,
+            .termination = result.termination,
+            .offset = offset,
+        };
+    }
 
     try printResult(
-        distribution,
-        offset,
-        results,
+        results[0..distributions.len],
         machine_readable,
     );
 }
+
+fn memset(d: []u8, v: u8) void {
+    @memset(d, v);
+}
+
+const Result = struct {
+    distribution: []const u8,
+    duration: u64,
+    iterations: u32,
+    termination: benchmark.TerminationCondition,
+    offset: usize,
+};
 
 const Distribution = std.meta.DeclEnum(@import("distribution"));
 
@@ -192,9 +207,7 @@ const ParamGenerator = struct {
 };
 
 fn printResult(
-    distribution: Distribution,
-    offset: usize,
-    result: benchmark.Result,
+    results: []const Result,
     machine_readable: bool,
 ) !void {
     var stdout = std.fs.File.stdout().writer(&.{});
@@ -210,29 +223,17 @@ fn printResult(
                 .{ .fmt = "{d}", .header = "offset", .alignment = .right },
             },
             .{},
-            [1]struct {
-                []const u8,
-                u64,
-                u32,
-                benchmark.TerminationCondition,
-                usize,
-            }{
-                .{
-                    @tagName(distribution),
-                    @intFromFloat(result.duration),
-                    result.iterations,
-                    result.termination,
-                    offset,
-                },
-            },
+            results,
         );
     } else {
-        try writer.print("{s}\t{d}\t{d}\t{d}\n", .{
-            @tagName(distribution),
-            offset,
-            result.duration,
-            result.iterations,
-        });
+        for (results) |result| {
+            try writer.print("{s}\t{d}\t{d}\t{d}\n", .{
+                result.distribution,
+                result.offset,
+                result.duration,
+                result.iterations,
+            });
+        }
     }
 }
 
