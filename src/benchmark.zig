@@ -34,7 +34,7 @@ pub const Result = struct {
 
 const Error = error{ IdempotentScale, ParamGen } || std.time.Timer.Error;
 
-pub fn benchmark(
+pub noinline fn benchmark(
     options: Options,
     comptime func: anytype,
     param_generator: anytype,
