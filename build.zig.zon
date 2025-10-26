@@ -15,8 +15,8 @@
             .hash = "zli-0.0.0-jkDhiY76AADP1MQJ_b_5YluNIxxP-Cdwo8WqoGOnqLv5",
         },
         .simple_tables = .{
-            .url = "git+https://github.com/dweiller/simple-tables.git?ref=main#7d41707f7cf1a9ff6ca34fb6edd155f4d63ba935",
-            .hash = "simple_tables-0.0.0-idLXB74vAAADOd0-EjsiTgmZnfqQAn86-8XjSeLb3qly",
+            .url = "git+https://github.com/dweiller/simple-tables.git?ref=main#b801b6893cbd4a5eab41e9d80a7ef64222e33f65",
+            .hash = "simple_tables-0.0.0-idLXByA5AAAeQv_K5SOzKtcVzQsEDqRGO8Dvek_G6_r9",
         },
     },
 }
