@@ -312,7 +312,7 @@ fn printResult(
         try writer.print("{d}\t{d}\t", .{ o[0], o[1] });
     }
     if (!machine_readable) {
-        try writer.print("{D:.2}\n", .{@as(u64, @intFromFloat(value))});
+        try writer.print("{d:.2}\n", .{value});
     } else {
         try writer.print("{d}\n", .{value});
     }
@@ -331,7 +331,7 @@ fn printResult2(
             writer,
             &.{
                 .{ .fmt = "{s}", .header = "dist", .alignment = .middle },
-                .{ .fmt = "{D}", .header = "time", .alignment = .{ .separator = '.' } },
+                .{ .fmt = "{d:.2}", .header = "time (ns)", .alignment = .{ .separator = '.' } },
                 .{ .fmt = "{d}", .header = "iterations", .alignment = .right },
                 .{ .fmt = "{t}", .header = "termination", .alignment = .middle },
                 .{ .fmt = "{d}", .header = "src offset", .alignment = .right },
@@ -340,7 +340,7 @@ fn printResult2(
             .{},
             [1]struct {
                 []const u8,
-                u64,
+                f64,
                 u32,
                 benchmark.TerminationCondition,
                 usize,
@@ -348,7 +348,7 @@ fn printResult2(
             }{
                 .{
                     @tagName(distribution),
-                    @intFromFloat(result.duration),
+                    result.duration,
                     result.iterations,
                     result.termination,
                     offsets[0],

@@ -136,7 +136,7 @@ fn runDistrib(
         );
         res.* = .{
             .distribution = @tagName(dist),
-            .duration = @intFromFloat(result.duration),
+            .duration = result.duration,
             .iterations = result.iterations,
             .termination = result.termination,
             .offset = offset,
@@ -155,7 +155,7 @@ fn memset(d: []u8, v: u8) void {
 
 const Result = struct {
     distribution: []const u8,
-    duration: u64,
+    duration: f64,
     iterations: u32,
     termination: benchmark.TerminationCondition,
     offset: usize,
@@ -217,7 +217,7 @@ fn printResult(
             writer,
             &.{
                 .{ .fmt = "{s}", .header = "dist", .alignment = .middle },
-                .{ .fmt = "{D}", .header = "time", .alignment = .{ .separator = '.' } },
+                .{ .fmt = "{d:.2}", .header = "time (ns)", .alignment = .{ .separator = '.' } },
                 .{ .fmt = "{d}", .header = "iterations", .alignment = .right },
                 .{ .fmt = "{t}", .header = "termination", .alignment = .middle },
                 .{ .fmt = "{d}", .header = "offset", .alignment = .right },
