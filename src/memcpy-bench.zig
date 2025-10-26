@@ -279,12 +279,12 @@ const ParamGenerator = struct {
         std.log.debug("generating batch for {d} iterations", .{iterations});
 
         const distribution = @import("distribution");
-        const weights = switch (self.dist) {
-            inline else => |t| @field(distribution, @tagName(t)),
+        const weights: []const f64 = switch (self.dist) {
+            inline else => |t| &@field(distribution, @tagName(t)),
         };
 
         for (dest_buffer, src_buffer) |*d, *s| {
-            const len = self.random.weightedIndex(f64, &weights);
+            const len = self.random.weightedIndex(f64, weights);
             d.* = self.dest[self.dest_offset..][0..len];
             s.* = self.src[self.src_offset..][0..len];
         }

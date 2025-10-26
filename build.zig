@@ -2,7 +2,9 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const BenchDeps = struct {
-    dist_mod: *std.Build.Module,
+    memcpy_dist_mod: *std.Build.Module,
+    memmove_dist_mod: *std.Build.Module,
+    memset_dist_mod: *std.Build.Module,
     zli_mod: *std.Build.Module,
     table_mod: *std.Build.Module,
 };
@@ -19,8 +21,14 @@ pub fn build(b: *std.Build) !void {
     const link_libc = b.option(bool, "libc", "Link libc (default: false)") orelse false;
 
     const deps: BenchDeps = .{
-        .dist_mod = b.createModule(.{
-            .root_source_file = try addDistributions(b),
+        .memcpy_dist_mod = b.createModule(.{
+            .root_source_file = try addDistributions(b, .memcpy),
+        }),
+        .memmove_dist_mod = b.createModule(.{
+            .root_source_file = try addDistributions(b, .memmove),
+        }),
+        .memset_dist_mod = b.createModule(.{
+            .root_source_file = try addDistributions(b, .memset),
         }),
         .zli_mod = b.dependency("zli", .{}).module("zli"),
         .table_mod = b.dependency("simple_tables", .{}).module("table"),
@@ -119,7 +127,7 @@ fn addBenchExes(
         .optimize = .ReleaseFast,
         .link_libc = link_libc,
         .imports = &.{
-            .{ .name = "distribution", .module = deps.dist_mod },
+            .{ .name = "distribution", .module = deps.memcpy_dist_mod },
             .{ .name = "table", .module = deps.table_mod },
         },
     });
@@ -130,7 +138,7 @@ fn addBenchExes(
         .optimize = .ReleaseFast,
         .link_libc = link_libc,
         .imports = &.{
-            .{ .name = "distribution", .module = deps.dist_mod },
+            .{ .name = "distribution", .module = deps.memmove_dist_mod },
             .{ .name = "zli", .module = deps.zli_mod },
             .{ .name = "table", .module = deps.table_mod },
         },
@@ -142,7 +150,7 @@ fn addBenchExes(
         .optimize = .ReleaseFast,
         .link_libc = link_libc,
         .imports = &.{
-            .{ .name = "distribution", .module = deps.dist_mod },
+            .{ .name = "distribution", .module = deps.memset_dist_mod },
             .{ .name = "zli", .module = deps.zli_mod },
             .{ .name = "table", .module = deps.table_mod },
         },
@@ -182,24 +190,21 @@ fn addBenchExes(
 
 fn addDistributions(
     b: *std.Build,
+    mem_func: enum { memcpy, memmove, memset },
 ) !std.Build.LazyPath {
-    const distributions = [_]struct { u8, []const u8 }{
-        .{ 'A', "MemcpyGoogleA.csv" },
-        .{ 'B', "MemcpyGoogleB.csv" },
-        .{ 'D', "MemcpyGoogleD.csv" },
-        .{ 'L', "MemcpyGoogleL.csv" },
-        .{ 'M', "MemcpyGoogleM.csv" },
-        .{ 'Q', "MemcpyGoogleQ.csv" },
-        .{ 'S', "MemcpyGoogleS.csv" },
-        .{ 'U', "MemcpyGoogleU.csv" },
-        .{ 'W', "MemcpyGoogleW.csv" },
-    };
+    const distributions = [_]u8{ 'A', 'B', 'D', 'L', 'M', 'Q', 'S', 'U', 'W' };
 
     const wf_step = b.addWriteFiles();
     var file_buffer: []u8 = &.{};
     var bytes = try std.ArrayList(u8).initCapacity(b.allocator, 1024);
+
     for (distributions) |dist| {
-        const path = b.pathJoin(&.{ "distributions", dist[1] });
+        const path = b.pathJoin(&.{
+            "distributions",
+            switch (mem_func) {
+                inline else => |f| .{'M'} ++ @tagName(f)[1..] ++ "Google" ++ .{dist} ++ ".csv",
+            },
+        });
         const csv_file = try b.build_root.handle.openFile(path, .{});
 
         const size = (try csv_file.stat()).size;
@@ -209,13 +214,15 @@ fn addDistributions(
 
         assert(size == try csv_file.readAll(file_buffer));
 
-        try bytes.print(b.allocator,
-            \\pub const {c}: [4097]f64 = d: {{
-            \\    const d = [_]f64{{ {s} }};
-            \\    break :d d ++ (.{{0}} ** (4097 - d.len));
-            \\}};
-            \\
-        , .{ dist[0], file_buffer[0..size] });
+        try bytes.print(b.allocator, "pub const {c} = [_]f64{{ {s} }};", .{
+            dist,
+            file_buffer[0..size],
+        });
     }
-    return wf_step.add("distribution.zig", bytes.items);
+    return wf_step.add(
+        switch (mem_func) {
+            inline else => |f| @tagName(f) ++ "-distribution.zig",
+        },
+        bytes.items,
+    );
 }
