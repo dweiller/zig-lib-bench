@@ -27,9 +27,15 @@ pub const TerminationCondition = enum {
 };
 
 pub const Result = struct {
-    duration: f64,
+    duration: u64,
     iterations: u32,
     termination: TerminationCondition,
+
+    pub fn timePerIteration(self: Result) f64 {
+        const time: f64 = @floatFromInt(self.duration);
+        const iter: f64 = @floatFromInt(self.iterations);
+        return time / iter;
+    }
 };
 
 const Error = error{ IdempotentScale, ParamGen } || std.time.Timer.Error;
@@ -102,7 +108,7 @@ pub noinline fn benchmark(
 
         if (termination) |term| {
             return .{
-                .duration = duration_per_iter,
+                .duration = total_duration,
                 .iterations = total_iterations,
                 .termination = term,
             };

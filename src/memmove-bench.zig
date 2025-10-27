@@ -262,7 +262,7 @@ fn printResult(
             }{
                 .{
                     @tagName(distribution),
-                    result.duration,
+                    result.timePerIteration(),
                     result.iterations,
                     result.termination,
                     offsets[0],
@@ -275,7 +275,7 @@ fn printResult(
             @tagName(distribution),
             offsets[0],
             offsets[1],
-            result.duration,
+            result.timePerIteration(),
             result.iterations,
         });
     }

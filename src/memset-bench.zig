@@ -136,7 +136,7 @@ fn runDistrib(
         );
         res.* = .{
             .distribution = @tagName(dist),
-            .duration = result.duration,
+            .duration = result.timePerIteration(),
             .iterations = result.iterations,
             .termination = result.termination,
             .offset = offset,
