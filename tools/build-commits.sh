@@ -26,7 +26,6 @@ do
     fi
     name=${commit}-fast.o
     $compiler build-obj -OReleaseFast -fno-builtin lib/compiler_rt.zig -femit-bin=${out_dir}/${name}
-    rm ${out_dir}/${name}.o
 done
 
 git checkout $initial_commit 2> /dev/null

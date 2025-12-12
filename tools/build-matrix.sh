@@ -31,7 +31,6 @@ do
     do
         name=${commit}-${target}-${cpu}-${mode}.o
         $compiler build-obj -O$mode -target $target -mcpu $cpu -fno-builtin lib/compiler-rt.zig -femit-bin=${out_dir}/${name}
-        rm ${out_dir}/${name}.o
     done
 done
 
