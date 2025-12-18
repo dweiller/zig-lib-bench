@@ -195,7 +195,6 @@ fn addDistributions(
     const distributions = [_]u8{ 'A', 'B', 'D', 'L', 'M', 'Q', 'S', 'U', 'W' };
 
     const wf_step = b.addWriteFiles();
-    var file_buffer: []u8 = &.{};
     var bytes = try std.ArrayList(u8).initCapacity(b.allocator, 1024);
 
     for (distributions) |dist| {
@@ -207,17 +206,12 @@ fn addDistributions(
         });
         const csv_file = try b.build_root.handle.openFile(path, .{});
 
-        const size = (try csv_file.stat()).size;
-        if (file_buffer.len < size) {
-            file_buffer = try b.allocator.realloc(file_buffer, size);
-        }
+        var evented_io: std.Io.Threaded = .init_single_threaded;
+        var csv_reader = csv_file.reader(evented_io.io(), &.{});
 
-        assert(size == try csv_file.readAll(file_buffer));
-
-        try bytes.print(b.allocator, "pub const {c} = [_]f64{{ {s} }};", .{
-            dist,
-            file_buffer[0..size],
-        });
+        try bytes.print(b.allocator, "pub const {c} = [_]f64{{ ", .{dist});
+        try csv_reader.interface.appendRemaining(b.allocator, &bytes, .unlimited);
+        try bytes.print(b.allocator, " }};", .{});
     }
     return wf_step.add(
         switch (mem_func) {

@@ -368,10 +368,7 @@ fn printResult2(
 }
 
 const alignment = if (std.simd.suggestVectorLength(u8)) |len|
-    @alignOf(@Type(.{ .vector = .{
-        .child = u8,
-        .len = len,
-    } }))
+    @alignOf(@Vector(len, u8))
 else
     @alignOf(usize);
 
