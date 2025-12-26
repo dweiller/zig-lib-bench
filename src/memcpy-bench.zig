@@ -416,6 +416,7 @@ fn usage(mode: ?Mode) void {
         \\        memcpy-bench offsets ITERATIONS COPY_LENGTH SOURCE_OFSSET DEST_OFFSET
         \\        memcpy-bench average ITERATIONS COPY_LENGTH
         \\        memcpy-bench lrandom ITERATIONS SEED MIN_LENGTH MAX_LENGTH SOURCE_OFFSET DEST_OFFSET
+        \\        memcpy-bench distrib SEED DISTRIBUTION SOURCE_OFFSET DEST_OFFSET
         \\
     ;
 
