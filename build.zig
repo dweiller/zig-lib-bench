@@ -12,10 +12,22 @@ const BenchDeps = struct {
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
 
-    const object_dir = b.option(
+    const memcpy_object_dir = b.option(
         []const u8,
-        "object-dir",
-        "directory of objects overriding compiler-rt functions",
+        "memcpy-object-dir",
+        "directory of objects overriding compiler-rt memcpy",
+    );
+
+    const memmove_object_dir = b.option(
+        []const u8,
+        "memmove-object-dir",
+        "directory of objects overriding compiler-rt memmove",
+    );
+
+    const memset_object_dir = b.option(
+        []const u8,
+        "memset-object-dir",
+        "directory of objects overriding compiler-rt memset",
     );
 
     const link_libc = b.option(bool, "libc", "Link libc (default: false)") orelse false;
@@ -34,22 +46,27 @@ pub fn build(b: *std.Build) !void {
         .table_mod = b.dependency("simple_tables", .{}).module("table"),
     };
 
-    const from_dir = if (object_dir) |dir|
-        try addFromDir(b, dir, deps, target, link_libc)
-    else
-        false;
-    if (!from_dir) {
-        const memcpy_exe, const memmove_exe, const memset_exe = addBenchExes(
-            b,
-            deps,
-            .zig_compiler,
-            target,
-            link_libc,
-        );
-        b.installArtifact(memcpy_exe);
-        b.installArtifact(memmove_exe);
-        b.installArtifact(memset_exe);
+    if (memcpy_object_dir) |dir| {
+        try addFromDir(b, dir, deps, target, link_libc, .memcpy);
     }
+
+    if (memmove_object_dir) |dir| {
+        try addFromDir(b, dir, deps, target, link_libc, .memmove);
+    }
+
+    if (memset_object_dir) |dir| {
+        try addFromDir(b, dir, deps, target, link_libc, .memset);
+    }
+
+    addBenchExes(
+        b,
+        deps,
+        .zig_compiler,
+        .zig_compiler,
+        .zig_compiler,
+        target,
+        link_libc,
+    );
 
     const histogram_mod = b.createModule(.{
         .root_source_file = b.path("src/histogram.zig"),
@@ -74,94 +91,71 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(static_histogram);
 }
 
+const Bench = enum { memcpy, memmove, memset };
+
 fn addFromDir(
     b: *std.Build,
     dir: []const u8,
     deps: BenchDeps,
     target: std.Build.ResolvedTarget,
     link_libc: bool,
-) !bool {
+    bench: Bench,
+) !void {
     var lib_dir = std.fs.cwd().openDir(dir, .{ .iterate = true }) catch |err| switch (err) {
-        error.FileNotFound => return false,
+        error.FileNotFound => {
+            const fail = b.addFail(b.fmt("directory '{s}' does not exist", .{dir}));
+            b.getInstallStep().dependOn(&fail.step);
+            return;
+        },
         else => return err,
     };
     defer lib_dir.close();
-
-    var has_compiler_rt = false;
 
     var iter = lib_dir.iterate();
     while (try iter.next()) |entry| {
         if (entry.kind != .file) continue;
         const path = b.path(b.pathJoin(&.{ dir, entry.name }));
 
-        const memcpy_exe, const memmove_exe, const memset_exe = addBenchExes(
+        addBenchExe(
             b,
             deps,
             .{ .object = path },
             target,
             link_libc,
+            bench,
         );
-        b.installArtifact(memcpy_exe);
-        b.installArtifact(memmove_exe);
-        b.installArtifact(memset_exe);
-
-        has_compiler_rt = true;
     }
-
-    return has_compiler_rt;
 }
 
-fn addBenchExes(
+const BenchImpl = union(enum) {
+    zig_compiler,
+    object: std.Build.LazyPath,
+};
+
+fn addBenchExe(
     b: *std.Build,
     deps: BenchDeps,
-    impl: union(enum) {
-        zig_compiler,
-        object: std.Build.LazyPath,
-    },
+    impl: BenchImpl,
     target: std.Build.ResolvedTarget,
     link_libc: bool,
-) struct { *std.Build.Step.Compile, *std.Build.Step.Compile, *std.Build.Step.Compile } {
-    const memcpy_root = b.createModule(.{
-        .root_source_file = b.path("src/memcpy-bench.zig"),
+    bench: Bench,
+) void {
+    const root_mod = b.createModule(.{
+        .root_source_file = b.path(b.fmt("src/{t}-bench.zig", .{bench})),
         .target = target,
         .optimize = .ReleaseFast,
         .link_libc = link_libc,
         .imports = &.{
             .{ .name = "distribution", .module = deps.memcpy_dist_mod },
             .{ .name = "table", .module = deps.table_mod },
-        },
-    });
-
-    const memmove_root = b.createModule(.{
-        .root_source_file = b.path("src/memmove-bench.zig"),
-        .target = target,
-        .optimize = .ReleaseFast,
-        .link_libc = link_libc,
-        .imports = &.{
-            .{ .name = "distribution", .module = deps.memmove_dist_mod },
             .{ .name = "zli", .module = deps.zli_mod },
-            .{ .name = "table", .module = deps.table_mod },
-        },
-    });
-
-    const memset_root = b.createModule(.{
-        .root_source_file = b.path("src/memset-bench.zig"),
-        .target = target,
-        .optimize = .ReleaseFast,
-        .link_libc = link_libc,
-        .imports = &.{
-            .{ .name = "distribution", .module = deps.memset_dist_mod },
-            .{ .name = "zli", .module = deps.zli_mod },
-            .{ .name = "table", .module = deps.table_mod },
         },
     });
 
     switch (impl) {
         .zig_compiler => {},
         .object => |path| {
-            memcpy_root.addObjectFile(path);
-            memmove_root.addObjectFile(path);
-            memset_root.addObjectFile(path);
+            root_mod.addObjectFile(path);
         },
     }
 
@@ -170,27 +164,31 @@ fn addBenchExes(
         .object => |path| std.fs.path.stem(path.basename(b, null)),
     };
 
-    const memcpy_exe = b.addExecutable(.{
-        .name = b.fmt("memcpy-bench-{s}", .{version_string}),
-        .root_module = memcpy_root,
+    const exe = b.addExecutable(.{
+        .name = b.fmt("{t}-bench-{s}", .{ bench, version_string }),
+        .root_module = root_mod,
     });
 
-    const memmove_exe = b.addExecutable(.{
-        .name = b.fmt("memmove-bench-{s}", .{version_string}),
-        .root_module = memmove_root,
-    });
+    b.installArtifact(exe);
+}
 
-    const memset_exe = b.addExecutable(.{
-        .name = b.fmt("memset-bench-{s}", .{version_string}),
-        .root_module = memset_root,
-    });
-
-    return .{ memcpy_exe, memmove_exe, memset_exe };
+fn addBenchExes(
+    b: *std.Build,
+    deps: BenchDeps,
+    memcpy_impl: BenchImpl,
+    memmove_impl: BenchImpl,
+    memset_impl: BenchImpl,
+    target: std.Build.ResolvedTarget,
+    link_libc: bool,
+) void {
+    addBenchExe(b, deps, memcpy_impl, target, link_libc, .memcpy);
+    addBenchExe(b, deps, memmove_impl, target, link_libc, .memmove);
+    addBenchExe(b, deps, memset_impl, target, link_libc, .memset);
 }
 
 fn addDistributions(
     b: *std.Build,
-    mem_func: enum { memcpy, memmove, memset },
+    mem_func: Bench,
 ) !std.Build.LazyPath {
     const distributions = [_]u8{ 'A', 'B', 'D', 'L', 'M', 'Q', 'S', 'U', 'W' };
 
