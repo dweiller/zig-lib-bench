@@ -101,7 +101,7 @@ fn addFromDir(
     link_libc: bool,
     bench: Bench,
 ) !void {
-    var lib_dir = std.fs.cwd().openDir(dir, .{ .iterate = true }) catch |err| switch (err) {
+    var lib_dir = std.Io.Dir.cwd().openDir(b.graph.io, dir, .{ .iterate = true }) catch |err| switch (err) {
         error.FileNotFound => {
             const fail = b.addFail(b.fmt("directory '{s}' does not exist", .{dir}));
             b.getInstallStep().dependOn(&fail.step);
@@ -109,10 +109,10 @@ fn addFromDir(
         },
         else => return err,
     };
-    defer lib_dir.close();
+    defer lib_dir.close(b.graph.io);
 
     var iter = lib_dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(b.graph.io)) |entry| {
         if (entry.kind != .file) continue;
         const path = b.path(b.pathJoin(&.{ dir, entry.name }));
 
@@ -202,7 +202,7 @@ fn addDistributions(
                 inline else => |f| .{'M'} ++ @tagName(f)[1..] ++ "Google" ++ .{dist} ++ ".csv",
             },
         });
-        const csv_file = try b.build_root.handle.openFile(path, .{});
+        const csv_file = try b.build_root.handle.openFile(b.graph.io, path, .{});
 
         var evented_io: std.Io.Threaded = .init_single_threaded;
         var csv_reader = csv_file.reader(evented_io.io(), &.{});

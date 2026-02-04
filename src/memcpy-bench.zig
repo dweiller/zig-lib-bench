@@ -1,8 +1,8 @@
-pub fn main() !void {
+pub fn main(init: std.process.Init.Minimal) !void {
     const allocator = std.heap.page_allocator;
 
-    const args = try std.process.argsAlloc(allocator);
-    defer allocator.free(args);
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    const args = try init.args.toSlice(arena.allocator());
 
     var index: usize = 1;
 
@@ -94,6 +94,8 @@ pub fn main() !void {
         .average => alignment,
     };
 
+    arena.deinit();
+
     const src = try allocator.alignedAlloc(u8, .fromByteUnits(alignment), copy_len + s_offset);
     defer allocator.free(src);
 
@@ -104,14 +106,24 @@ pub fn main() !void {
     @memset(src, 0);
     @memset(dest, 0);
 
+    var buffer: [64]u8 = undefined;
+    var stderr = std.Io.File.stdout().writer(std.Options.debug_io, &buffer);
+
     (switch (mode) {
         .offsets => printResult(
+            &stderr.interface,
             .{ s_offset, d_offset },
             runOffsets(iterations, copy_len, dest[d_offset..], src[s_offset..]),
             machine_readable,
         ),
-        .average => printResult(null, runAverage(iterations, copy_len, dest, src), machine_readable),
+        .average => printResult(
+            &stderr.interface,
+            null,
+            runAverage(iterations, copy_len, dest, src),
+            machine_readable,
+        ),
         .lrandom => printResult(
+            &stderr.interface,
             .{ s_offset, d_offset },
             runRandom(
                 allocator,
@@ -125,6 +137,7 @@ pub fn main() !void {
             machine_readable,
         ),
         .distrib => printResult2(
+            &stderr.interface,
             distribution,
             .{ s_offset, d_offset },
             try runDist(
@@ -302,12 +315,11 @@ const ParamGenerator = struct {
 };
 
 fn printResult(
+    writer: *std.Io.Writer,
     offsets: ?struct { usize, usize },
     value: f64,
     machine_readable: bool,
 ) !void {
-    var stdout = std.fs.File.stdout().writer(&.{});
-    const writer = &stdout.interface;
     if (offsets) |o| {
         try writer.print("{d}\t{d}\t", .{ o[0], o[1] });
     }
@@ -319,13 +331,12 @@ fn printResult(
 }
 
 fn printResult2(
+    writer: *std.Io.Writer,
     distribution: Distribution,
     offsets: struct { usize, usize },
     result: benchmark.Result,
     machine_readable: bool,
 ) !void {
-    var stdout = std.fs.File.stdout().writer(&.{});
-    const writer = &stdout.interface;
     if (!machine_readable) {
         try table.format(
             writer,
@@ -373,8 +384,11 @@ else
     @alignOf(usize);
 
 fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
-    var stderr = std.fs.File.stderr().writer(&.{});
-    stderr.interface.print(fmt ++ "\n", args) catch @panic("failed writing error message");
+    var buffer: [64]u8 = undefined;
+    const stderr = std.debug.lockStderr(&buffer);
+    defer std.debug.unlockStderr();
+
+    stderr.file_writer.interface.print(fmt ++ "\n", args) catch @panic("failed writing error message");
     std.process.exit(1);
 }
 
@@ -394,7 +408,10 @@ const mode_options = blk: {
 };
 
 fn usage(mode: ?Mode) void {
-    const stderr = std.fs.File.stderr();
+    var buffer: [64]u8 = undefined;
+    const stderr = std.debug.lockStderr(&buffer);
+    defer std.debug.unlockStderr();
+
     const message = if (mode) |m| switch (m) {
         .offsets => "usage: memcpy-bench offsets ITERATIONS COPY_LENGTH SOURCE_OFFSET DEST_OFFSET\n",
         .average => "usage: memcpy-bench average ITERATIONS COPY_LENGTH\n",
@@ -420,7 +437,7 @@ fn usage(mode: ?Mode) void {
         \\
     ;
 
-    stderr.writeAll(message) catch @panic("failed to write usage message");
+    stderr.file_writer.interface.writeAll(message) catch @panic("failed to write usage message");
 }
 
 const std = @import("std");

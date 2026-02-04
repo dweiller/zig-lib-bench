@@ -56,8 +56,8 @@ const scan_args = [_]zli.Arg{
     },
 };
 
-pub fn main() u8 {
-    parseAndRun() catch |err| {
+pub fn main(init: std.process.Init) u8 {
+    parseAndRun(init.io, init.arena, init.gpa, init.minimal.args) catch |err| {
         switch (err) {
             error.AlreadyHandled => return 1,
             else => {
@@ -72,47 +72,46 @@ pub fn main() u8 {
     return 0;
 }
 
-fn parseAndRun() !void {
-    var arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
-    defer arena.deinit();
-
-    const arena_allocator = arena.allocator();
-
-    const parse_result = try Cli.parse(arena_allocator);
-    defer parse_result.deinit(arena_allocator);
+fn parseAndRun(
+    io: std.Io,
+    arena: *std.heap.ArenaAllocator,
+    gpa: std.mem.Allocator,
+    args: std.process.Args,
+) !void {
+    const parse_result = try Cli.parse(io, arena.allocator(), args);
+    defer parse_result.deinit(arena.allocator());
 
     const params = switch (parse_result) {
         .ok => |params| params,
         .err => |err| {
-            err.renderToStdErr();
+            err.renderToStdErr(io);
             return error.AlreadyHandled;
         },
     };
 
-    var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
-    defer std.debug.assert(gpa.deinit() == .ok);
-    try run(gpa.allocator(), params);
+    try run(io, gpa, params);
 }
 
-fn run(allocator: std.mem.Allocator, params: Cli.Params) !void {
+fn run(io: std.Io, allocator: std.mem.Allocator, params: Cli.Params) !void {
     const subcommand = params.subcommand orelse {
-        try Cli.printHelp();
-        return std.process.cleanExit();
+        try Cli.printHelp(io);
+        return std.process.cleanExit(io);
     };
 
     const seed = params.options.seed orelse 0;
     const machine_readable = if (params.options.@"machine-readable")
         true
     else
-        !std.fs.File.stdout().isTty();
+        !(std.Io.File.stdout().isTty(io) catch false);
 
     switch (subcommand) {
-        .distrib => |sc| try runDistrib(allocator, seed, machine_readable, sc),
-        .scan => |sc| try runScan(allocator, seed, machine_readable, sc),
+        .distrib => |sc| try runDistrib(io, allocator, seed, machine_readable, sc),
+        .scan => |sc| try runScan(io, allocator, seed, machine_readable, sc),
     }
 }
 
 fn runDistrib(
+    io: std.Io,
     allocator: std.mem.Allocator,
     seed: u64,
     machine_readable: bool,
@@ -162,13 +161,16 @@ fn runDistrib(
         };
     }
 
+    var stdout = std.Io.File.stdout().writer(io, &.{});
     try printDistResult(
+        &stdout.interface,
         results[0..distributions.len],
         machine_readable,
     );
 }
 
 fn runScan(
+    io: std.Io,
     allocator: std.mem.Allocator,
     seed: u64,
     machine_readable: bool,
@@ -191,7 +193,9 @@ fn runScan(
         std.log.err("missing expected '--size' argument", .{});
         return error.AlreadyHandled;
     }
-    try printScanResult(result_buffer.items, machine_readable);
+
+    var stdout = std.Io.File.stdout().writer(io, &.{});
+    try printScanResult(&stdout.interface, result_buffer.items, machine_readable);
 }
 
 fn scanRange(
@@ -381,11 +385,10 @@ const ScanParamGenerator = struct {
 };
 
 fn printDistResult(
+    writer: *std.Io.Writer,
     results: []const DistResult,
     machine_readable: bool,
 ) !void {
-    var stdout = std.fs.File.stdout().writer(&.{});
-    const writer = &stdout.interface;
     if (!machine_readable) {
         try table.format(
             writer,
@@ -412,11 +415,10 @@ fn printDistResult(
 }
 
 fn printScanResult(
+    writer: *std.Io.Writer,
     results: []const ScanResult,
     machine_readable: bool,
 ) !void {
-    var stdout = std.fs.File.stdout().writer(&.{});
-    const writer = &stdout.interface;
     if (!machine_readable) {
         try table.format(
             writer,

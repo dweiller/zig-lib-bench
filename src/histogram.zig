@@ -1,40 +1,39 @@
 fn destructor() callconv(.c) void {
-    var buffer: [32]u8 = undefined;
+    const io = std.Options.debug_io;
 
-    const argv: []const []const u8 = blk: {
-        const path = std.fs.selfExePath(&buffer) catch {
-            break :blk &.{"(unknown)"};
-        };
-        break :blk &.{path};
-    };
+    const filename = if (std.c.getenv("MEMCPY_HIST_FILENAME")) |p|
+        std.mem.sliceTo(p, 0)
+    else
+        "memcpy-hist.tsv";
 
-    const file = std.fs.cwd().createFile("memcpy-hist.tsv", .{
+    const file = std.Io.Dir.cwd().createFile(io, filename, .{
         .truncate = false,
         .lock = .exclusive,
     }) catch |err| {
         std.log.err("could not open memcpy-hist.csv: {s}", .{@errorName(err)});
         return;
     };
-    defer file.close();
+    defer file.close(io);
 
-    file.seekFromEnd(0) catch {
-        std.log.err("could not seek to end of memcpy-hist.tsv", .{});
+    var buffer: [64]u8 = undefined;
+    var file_writer = file.writer(io, &buffer);
+
+    const offset = file.length(io) catch |e| {
+        std.log.err("could not append to {s}: {t}", .{ filename, e });
         return;
     };
 
-    var file_writer = file.writer(&.{});
-    const writer = &file_writer.interface;
+    file_writer.seekToUnbuffered(offset) catch |e| {
+        std.log.err("could not append to {s}: {t}", .{ filename, e });
+        return;
+    };
 
-    writeHistogram(writer, argv) catch |err| {
-        std.log.err("could not write histogram: {s}", .{@errorName(err)});
+    writeHistogram(&file_writer.interface) catch |err| {
+        std.log.err("could not write {s}: {t}", .{ filename, err });
     };
 }
 
-fn writeHistogram(writer: anytype, argv: []const []const u8) !void {
-    try writer.writeByte('#');
-    for (argv) |arg| {
-        try writer.print(" {s}", .{std.mem.sliceTo(arg, 0)});
-    }
+fn writeHistogram(writer: *std.Io.Writer) !void {
     try writer.writeAll("\n# memcpy length\n#len\tcount\n");
     for (memcpy_len[0 .. memcpy_len.len - 1], 0..) |count, length| {
         try writer.print("{d}\t{d}\n", .{ length, count });

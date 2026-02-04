@@ -1,7 +1,7 @@
 .{
     .name = .compiler_rt_bench,
     .fingerprint = 0x7bfe4fa8dadab772,
-    .minimum_zig_version = "0.16.0-dev.1484+d0ba6642b",
+    .minimum_zig_version = "0.16.0-dev.2368+380ea6fb5",
     .version = "0.0.0",
     .paths = .{
         "build.zig",
@@ -12,8 +12,8 @@
     },
     .dependencies = .{
         .zli = .{
-            .url = "git+https://github.com/dweiller/zli.git?ref=main#b7df501912a37db2d50fedfb9536a8f6f558488d",
-            .hash = "zli-0.0.0-jkDhidb6AAC05ocPm9hXleeDv8FAG9V_5KnE0gD2tLKM",
+            .url = "git+https://github.com/dweiller/zli.git#040de7fca98ba25f9941ffc80630d5c19255c0c9",
+            .hash = "zli-0.0.0-jkDhiVj7AAAcc_ep9HphA5f-sx0Hwfk8JYgJ_9kONWvA",
         },
         .simple_tables = .{
             .url = "git+https://github.com/dweiller/simple-tables.git?ref=main#b801b6893cbd4a5eab41e9d80a7ef64222e33f65",
