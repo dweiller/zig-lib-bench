@@ -33,7 +33,45 @@ fn destructor() callconv(.c) void {
     };
 }
 
+var cmdline_opt: ?[]u8 = null;
+
+fn constructor(c_argc: c_int, c_argv: [*][*:0]c_char, c_envp: [*:null]?[*:0]c_char) callconv(.c) void {
+    _ = c_envp;
+
+    const argv = @as([*][*:0]u8, @ptrCast(c_argv))[0..@intCast(c_argc)];
+    const args: std.process.Args = .{ .vector = argv };
+
+    var size: usize = 0;
+    {
+        var iter = args.iterate();
+
+        if (iter.next()) |arg| {
+            size += arg.len;
+        } else return;
+
+        while (iter.next()) |arg| {
+            size += arg.len + 1;
+        }
+    }
+
+    var buffer = std.ArrayList(u8).initCapacity(std.heap.page_allocator, size) catch return;
+
+    var iter = args.iterate();
+    buffer.appendSliceAssumeCapacity(iter.next() orelse unreachable);
+
+    while (iter.next()) |arg| {
+        buffer.appendAssumeCapacity(' ');
+        buffer.appendSliceAssumeCapacity(arg);
+    }
+
+    cmdline_opt = buffer.items;
+}
+
 fn writeHistogram(writer: *std.Io.Writer) !void {
+    if (cmdline_opt) |cmdline| {
+        try writer.print("# {s}\n", .{cmdline});
+    }
+
     try writer.writeAll("\n# memcpy length\n#len\tcount\n");
     for (memcpy_len[0 .. memcpy_len.len - 1], 0..) |count, length| {
         try writer.print("{d}\t{d}\n", .{ length, count });
@@ -51,6 +89,12 @@ fn writeHistogram(writer: *std.Io.Writer) !void {
 }
 
 export const fini_array: [1]*const fn () callconv(.c) void linksection(".fini_array") = .{&destructor};
+
+export const init_array: [1]*const fn (
+    c_int,
+    [*][*:0]c_char,
+    [*:null]?[*:0]c_char,
+) callconv(.c) void linksection(".init_array") = .{&constructor};
 
 const CopyType = if (std.simd.suggestVectorLength(u8)) |len|
     @Vector(len, u8)
